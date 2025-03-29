@@ -3,6 +3,8 @@ const express = require("express");
 const multer = require("multer");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 const app = express();
 const PORT = 5000;
 
@@ -27,9 +29,10 @@ const upload = multer({ storage });
 
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Price calculation function
-const calculatePrice = (size) => size * 0.10;
+const calculatePrice = (size) => (size / 1000) * 0.15; // $0.15 per KB
 
 // Routes
 app.post("/upload", upload.single("file"), async (req, res) => {
@@ -37,7 +40,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const price = calculatePrice(size);
     const order = new Order({ filename: req.file.originalname, size, price });
     await order.save();
-    res.json({ message: "File uploaded successfully!", price });
+    res.json({ message: "File uploaded successfully!", price, filePath: `/uploads/${req.file.filename}` });
 });
 
 app.get("/orders", async (req, res) => {
@@ -54,11 +57,13 @@ import { STLViewer } from "react-stl-viewer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Loader } from "lucide-react";
 
 export default function Home() {
     const [file, setFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [price, setPrice] = useState(null);
+    const [loading, setLoading] = useState(false);
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
@@ -66,22 +71,24 @@ export default function Home() {
     };
 
     const handleUpload = async () => {
+        setLoading(true);
         const formData = new FormData();
         formData.append("file", file);
         const response = await axios.post("http://localhost:5000/upload", formData);
         setPrice(response.data.price);
+        setLoading(false);
         alert("File uploaded!");
     };
 
     return (
-        <div className="flex flex-col items-center p-6 space-y-4">
-            <h1 className="text-3xl font-bold">3D Printing Service</h1>
-            <Card className="p-4 shadow-lg w-96">
+        <div className="flex flex-col items-center p-6 space-y-6 bg-gray-900 text-white min-h-screen">
+            <h1 className="text-4xl font-bold">3D Printing Service</h1>
+            <Card className="p-6 shadow-lg w-[400px] bg-gray-800 border border-gray-700 rounded-2xl">
                 <CardContent className="flex flex-col items-center space-y-4">
-                    <Input type="file" accept=".stl" onChange={handleFileChange} />
-                    <Button onClick={handleUpload} className="bg-blue-500 text-white px-4 py-2 rounded-lg">Upload</Button>
-                    {previewUrl && <STLViewer url={previewUrl} width={300} height={300} />} 
-                    {price && <p className="text-lg font-semibold">Estimated Price: ${price.toFixed(2)}</p>}
+                    <Input type="file" accept=".stl" onChange={handleFileChange} className="file:bg-blue-500 file:text-white file:rounded-lg file:px-4 file:py-2" />
+                    <Button onClick={handleUpload} className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center">{loading ? <Loader className="animate-spin mr-2" /> : "Upload"}</Button>
+                    {previewUrl && <STLViewer url={previewUrl} width={350} height={350} className="border border-gray-600 rounded-lg" />} 
+                    {price && <p className="text-lg font-semibold text-green-400">Estimated Price: ${price.toFixed(2)}</p>}
                 </CardContent>
             </Card>
         </div>
