@@ -13,6 +13,8 @@ mongoose.connect("mongodb://localhost:27017/3dprinting", {
 });
 const Order = mongoose.model("Order", {
     filename: String,
+    size: Number,
+    price: Number,
     date: { type: Date, default: Date.now },
 });
 
@@ -26,11 +28,16 @@ const upload = multer({ storage });
 app.use(cors());
 app.use(express.json());
 
+// Price calculation function
+const calculatePrice = (size) => size * 0.10;
+
 // Routes
 app.post("/upload", upload.single("file"), async (req, res) => {
-    const order = new Order({ filename: req.file.originalname });
+    const size = req.file.size / 1000; // Convert bytes to KB
+    const price = calculatePrice(size);
+    const order = new Order({ filename: req.file.originalname, size, price });
     await order.save();
-    res.json({ message: "File uploaded successfully!" });
+    res.json({ message: "File uploaded successfully!", price });
 });
 
 app.get("/orders", async (req, res) => {
@@ -44,25 +51,39 @@ app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 import { useState } from "react";
 import axios from "axios";
 import { STLViewer } from "react-stl-viewer";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function Home() {
     const [file, setFile] = useState(null);
-    const [orders, setOrders] = useState([]);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [price, setPrice] = useState(null);
 
-    const handleFileChange = (e) => setFile(e.target.files[0]);
+    const handleFileChange = (e) => {
+        setFile(e.target.files[0]);
+        setPreviewUrl(URL.createObjectURL(e.target.files[0]));
+    };
+
     const handleUpload = async () => {
         const formData = new FormData();
         formData.append("file", file);
-        await axios.post("http://localhost:5000/upload", formData);
+        const response = await axios.post("http://localhost:5000/upload", formData);
+        setPrice(response.data.price);
         alert("File uploaded!");
     };
 
     return (
-        <div>
-            <h1>3D Printing Service</h1>
-            <input type="file" accept=".stl" onChange={handleFileChange} />
-            <button onClick={handleUpload}>Upload</button>
-            {file && <STLViewer url={URL.createObjectURL(file)} width={400} height={400} />} 
+        <div className="flex flex-col items-center p-6 space-y-4">
+            <h1 className="text-3xl font-bold">3D Printing Service</h1>
+            <Card className="p-4 shadow-lg w-96">
+                <CardContent className="flex flex-col items-center space-y-4">
+                    <Input type="file" accept=".stl" onChange={handleFileChange} />
+                    <Button onClick={handleUpload} className="bg-blue-500 text-white px-4 py-2 rounded-lg">Upload</Button>
+                    {previewUrl && <STLViewer url={previewUrl} width={300} height={300} />} 
+                    {price && <p className="text-lg font-semibold">Estimated Price: ${price.toFixed(2)}</p>}
+                </CardContent>
+            </Card>
         </div>
     );
 }
